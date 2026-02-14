@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Next.js
+# --- FRONTEND (Next.js) ---
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+
+frontend/coverage/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# --- BACKEND (Python) ---
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/venv/
+backend/.venv/
+backend/env/
+backend/build/
+backend/dist/
+backend/instance/
+backend/logs/
+backend/api/__pycache__
+backend/*.egg-info/
+
+# --- GENERAL & DEBUG ---
+.DS_Store
+*.pem
+*.log
+.env
+.env.local
+.env.*.local
+
+# Ostalo
+.DS_Store

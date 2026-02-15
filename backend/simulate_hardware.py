@@ -2,7 +2,7 @@ import socket
 import time
 
 # Konfiguracija Servera
-SERVER_IP = '127.0.0.1'
+SERVER_IP = 'backend'
 SERVER_PORT = 7000
 
 # Simuliramo da šaljemo sa Glavnog Ulaza

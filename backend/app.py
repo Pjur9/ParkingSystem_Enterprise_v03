@@ -1,3 +1,5 @@
+import eventlet
+eventlet.monkey_patch()
 import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -5,10 +7,8 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
-
 # Importovanje modela i baze
 from models import db
-
 # Importovanje servisa
 from services.forwarder_tcp import ForwarderIngressServer
 
@@ -21,7 +21,7 @@ from api.routes_roles import roles_bp
 from api.routes_rules import rules_bp
 from api.routes_devices import devices_bp
 # Učitavanje Environment varijabli
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # --- KONFIGURACIJA LOGOVANJA ---
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -45,7 +45,8 @@ def create_app():
     # Koristimo SQLite za dev, PostgreSQL za prod
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///parking_v3.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+    db_url = app.config['SQLALCHEMY_DATABASE_URI'] # 
+    print(f"DEBUG: Ucitani DATABASE_URL je: {db_url}")
     # 2. Inicijalizacija Ekstenzija
     db.init_app(app)
     CORS(app) # Dozvoli Frontend-u (Next.js) da zove API
@@ -73,6 +74,20 @@ def create_app():
     @app.route('/health', methods=['GET'])
     def health_check():
         return jsonify({"status": "healthy", "version": "3.0.0"})
+    
+    try:
+        logger.info("[TCP] Starting Forwarder TCP Server on port 7000...")
+        forwarder_server = ForwarderIngressServer(
+            host="0.0.0.0", 
+            port=7000, 
+            flask_app=app, 
+            socketio=socketio
+        )
+        forwarder_server.start()
+        # Čuvamo referencu da je ne obriše Garbage Collector
+        app.forwarder_server = forwarder_server
+    except Exception as e:
+        logger.error(f" Failed to start TCP Server: {e}")
 
     return app, socketio
 
@@ -91,20 +106,6 @@ if __name__ == '__main__':
             logger.info(" Database tables checked/created.")
         except Exception as e:
             logger.error(f" Database connection failed: {e}")
-
-    # Startovanje TCP Forwardera u pozadini
-    # Sluša na portu 7000 za podatke sa hardvera
-    try:
-        logger.info("[TCP] Starting Forwarder TCP Server...")
-        forwarder_server = ForwarderIngressServer(
-            host="0.0.0.0", 
-            port=7000, 
-            flask_app=app, 
-            socketio=socketio
-        )
-        forwarder_server.start()
-    except Exception as e:
-        logger.error(f" Failed to start TCP Server: {e}")
 
     # Startovanje Flask Servera
     logger.info("[APP] Starting ParkingOS V3.0 Backend on port 5000...")

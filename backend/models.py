@@ -67,7 +67,7 @@ class User(db.Model):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     email = Column(String(120), unique=True, nullable=True)
-    
+    phone_number = Column(String(50), nullable=True)
     # RBAC & Tenancy
     role_id = Column(Integer, ForeignKey('roles.id'), nullable=False)
     tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True)

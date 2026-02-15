@@ -6,7 +6,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 # Importujemo modele i novi servis
-from models import db, Device, Gate, CredentialType
+from models import db, Device, Gate, CredentialType, ScanLog
 from services.parking_service import ParkingLogicService
 
 # Podesavanje logger-a
@@ -170,25 +170,77 @@ class ForwarderIngressServer:
                 # Opciono: Posalji poruku na displej rampe
                 # self.send_display_message(ip, "Access Denied")
 
-    def send_open_command(self, ip):
+    def send_open_command(self, ip, port=5005):
         """
-        Šalje signal nazad na kontroler da otvori relej.
-        U realnosti, ovo je specifičan bajt niz za konkretan hardver (npr. ZKTeco, HikVision).
+        Šalje raw TCP signal kontroleru da otvori relej.
+        Vraća (success: bool, message: str)
         """
         try:
-            # Simulacija slanja komande
-            # real_socket.connect((ip, COMMAND_PORT))
-            # real_socket.send(b'\x01\x00') 
-            pass
+            logger.info(f"Connecting to hardware controller at {ip}:{port}...")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2.0) # Timeout 2 sekunde
+                s.connect((ip, port))
+                s.sendall(b"CMD:OPEN\n")
+                
+                # Čekamo potvrdu od hardvera (opciono, ali dobro za debug)
+                response = s.recv(1024).decode().strip()
+                logger.info(f"Hardware confirmed: {response}")
+                return True, response
+                
+        except ConnectionRefusedError:
+            err_msg = f"Connection Refused at {ip}:{port}. Is the device online?"
+            logger.error(err_msg)
+            return False, err_msg
         except Exception as e:
-            logger.error(f"Failed to send OPEN command to {ip}: {e}")
+            err_msg = f"Socket Error: {str(e)}"
+            logger.error(err_msg)
+            return False, err_msg
 
     def open_gate_manual(self, gate_id):
-        """Metoda koju poziva API (ne hardver) za ručno otvaranje"""
+        """
+        Metoda koju poziva API za ručno otvaranje.
+        1. Nalazi uređaj.
+        2. Zove send_open_command.
+        3. Upisuje u LOG (da se vidi na dashboardu).
+        """
         with self.app.app_context():
-            # Nadji glavni kontroler za ovaj gate
-            device = Device.query.filter_by(gate_id=gate_id, device_type='controller').first()
-            if device:
-                self.send_open_command(device.ip_address)
-                return True, "Command Sent"
-            return False, "No controller found for gate"
+            # 1. Nadji glavni kontroler za ovaj gate
+            device = Device.query.filter_by(gate_id=gate_id).first()
+            gate = Gate.query.get(gate_id)
+            
+            if not device:
+                return False, "No hardware controller found for this gate"
+
+            # 2. Pošalji komandu (koristimo postojeću funkciju)
+            success, message = self.send_open_command(device.ip_address, device.port)
+
+            if success:
+                # 3. Ako je uspelo, upiši u Audit Log
+                # Ovo je ključno da bi se na Frontendu pojavio zeleni red
+                new_log = ScanLog(
+                    gate_id=gate.id,
+                    gate_name_snapshot=gate.name,
+                    scan_type=CredentialType.PIN, # PIN kao oznaka za manuelno/admin
+                    raw_payload="MANUAL_OVERRIDE",
+                    is_access_granted=True,
+                    denial_reason="MANUAL_OPEN_DASHBOARD",
+                    resolved_user_id=None 
+                )
+                db.session.add(new_log)
+                db.session.commit()
+                
+                # Emituj event da se Dashboard odmah osvježi (bez refresha stranice)
+                # Serijalizacija loga bi trebala biti u utils, ali ovdje cemo poslati osnovno
+                self.socketio.emit('access_log', {
+                    "id": new_log.id,
+                    "gate_name": gate.name,
+                    "scan_type": "PIN",
+                    "payload": "MANUAL_OVERRIDE",
+                    "allowed": True,
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
+                })
+                
+                return True, f"Gate opened via {device.ip_address}. HW: {message}"
+            
+            else:
+                return False, message

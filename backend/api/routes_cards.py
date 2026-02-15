@@ -23,6 +23,8 @@ def get_users():
             "first_name": u.first_name,
             "last_name": u.last_name,
             "full_name": f"{u.first_name} {u.last_name}",
+            "email": u.email,           # <--- NOVO
+            "phone_number": u.phone_number, # <--- NOVO
             "role_id": u.role_id,
             "role": u.role.name if u.role else "Unknown",
             "tenant_id": u.tenant_id,
@@ -50,6 +52,8 @@ def create_user():
         new_user = User(
             first_name=data['first_name'],
             last_name=data['last_name'],
+            email=data.get('email'),         # <--- NOVO
+            phone_number=data.get('phone_number'), # <--- NOVO
             role_id=data['role_id'],
             tenant_id=data.get('tenant_id') or None,
             is_active=True
@@ -87,7 +91,8 @@ def update_user(id):
         user.last_name = data.get('last_name', user.last_name)
         user.role_id = data.get('role_id', user.role_id)
         user.tenant_id = data.get('tenant_id') or None
-        
+        user.email = data.get('email', user.email)             # <--- NOVO
+        user.phone_number = data.get('phone_number', user.phone_number) # <--- NOVO
         # 2. Update Kredencijala (Strategija: Obriši stare, upiši nove)
         # Ovo je najjednostavnije za implementaciju.
         if 'credentials' in data:

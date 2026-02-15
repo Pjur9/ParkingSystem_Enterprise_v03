@@ -1,29 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, User as UserIcon, CreditCard, Pencil, Trash2, X, Car, QrCode, Scan } from "lucide-react";
-
-// Definicija tipova
-interface Credential {
-  type: string;
-  value: string;
-}
-
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  role: string;
-  role_id: number;
-  tenant: string | null;
-  tenant_id: number | null;
-  credentials: Credential[]; // Niz kredencijala
-}
+import { Plus, User as UserIcon, CreditCard, Pencil, Trash2, X, Car, QrCode, Scan, Mail, Phone } from "lucide-react";
+import { User, Credential } from "@/types";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Stanje za formu
   const [showModal, setShowModal] = useState(false);
@@ -32,10 +17,12 @@ export default function UsersPage() {
   const [roles, setRoles] = useState<{id: number, name: string}[]>([]);
   const [tenants, setTenants] = useState<{id: number, name: string}[]>([]);
   
-  // Forma sada sadrži NIZ kredencijala
+  // Ažuriran formData sa email i phone_number
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
+    email: "",          // NOVO
+    phone_number: "",   // NOVO
     role_id: 1,
     tenant_id: "",
     credentials: [] as Credential[] 
@@ -56,6 +43,17 @@ export default function UsersPage() {
       console.error("Failed to fetch users", err);
     }
   };
+
+  const filteredUsers = users.filter(user => {
+    const term = searchQuery.toLowerCase();
+    return (
+      user.first_name.toLowerCase().includes(term) ||
+      user.last_name.toLowerCase().includes(term) ||
+      (user.email && user.email.toLowerCase().includes(term)) ||
+      (user.phone_number && user.phone_number.includes(term)) ||
+      user.role.toLowerCase().includes(term)
+    );
+  });
 
   const fetchOptions = async () => {
     try {
@@ -95,9 +93,11 @@ export default function UsersPage() {
     setFormData({
         first_name: "",
         last_name: "",
+        email: "",          // Reset
+        phone_number: "",   // Reset
         role_id: roles.length > 0 ? roles[0].id : 1,
         tenant_id: "",
-        credentials: [{ type: "RFID", value: "" }] // Po defaultu jedan prazan red
+        credentials: [{ type: "RFID", value: "" }] 
     });
     setShowModal(true);
   };
@@ -107,9 +107,10 @@ export default function UsersPage() {
     setFormData({
         first_name: user.first_name,
         last_name: user.last_name,
+        email: user.email || "",                // Load existing
+        phone_number: user.phone_number || "",  // Load existing
         role_id: user.role_id,
         tenant_id: user.tenant_id ? String(user.tenant_id) : "",
-        // Kopiramo postojeće kredencijale ili dodajemo jedan prazan ako nema ništa
         credentials: user.credentials.length > 0 
             ? user.credentials.map(c => ({ type: c.type, value: c.value }))
             : [{ type: "RFID", value: "" }]
@@ -130,7 +131,6 @@ export default function UsersPage() {
         ...formData,
         tenant_id: formData.tenant_id ? Number(formData.tenant_id) : null,
         role_id: Number(formData.role_id),
-        // Filtriramo prazne redove pre slanja
         credentials: formData.credentials.filter(c => c.value.trim() !== "")
       };
 
@@ -170,6 +170,15 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-800">User Management</h1>
           <p className="text-slate-500">Manage access credentials and roles</p>
         </div>
+        <div className="flex gap-4">
+           <input 
+             type="text" 
+             placeholder="Search users..." 
+             className="border p-2 rounded w-64"
+             value={searchQuery}
+             onChange={(e) => setSearchQuery(e.target.value)}
+           />
+        </div>
         <button 
           onClick={handleOpenAdd}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -185,13 +194,15 @@ export default function UsersPage() {
               <th className="px-6 py-3">User Info</th>
               <th className="px-6 py-3">Role & Tenant</th>
               <th className="px-6 py-3">Credentials (Multi)</th>
+              <th className="px-6 py-3">Phone Number</th>
+              <th className="px-6 py-3">Email</th>
               <th className="px-6 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-               <tr><td colSpan={4} className="p-6 text-center">Loading users...</td></tr>
-            ) : users.map((user) => (
+               <tr><td colSpan={6} className="p-6 text-center">Loading users...</td></tr>
+            ) : filteredUsers.map((user) => (
               <tr key={user.id} className="hover:bg-slate-50 group">
                 <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
@@ -231,6 +242,14 @@ export default function UsersPage() {
                     )}
                   </div>
                 </td>
+                {/* DODATE KOLONE ZA TELEFON I EMAIL U BODY */}
+                <td className="px-6 py-3 text-slate-600">
+                    {user.phone_number || "-"}
+                </td>
+                <td className="px-6 py-3 text-slate-600">
+                    {user.email || "-"}
+                </td>
+                
                 <td className="px-6 py-3 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => handleOpenEdit(user)} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
@@ -270,6 +289,30 @@ export default function UsersPage() {
                   <input id="last_name" required type="text" className="w-full p-2 border rounded" 
                     value={formData.last_name}
                     onChange={e => setFormData({...formData, last_name: e.target.value})} />
+                </div>
+              </div>
+
+              {/* NOVI RED ZA EMAIL I TELEFON */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="email" className="block text-xs font-bold text-slate-500 mb-1">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-2 top-2.5 text-slate-400" size={14} />
+                    <input id="email" type="email" className="w-full p-2 pl-8 border rounded" 
+                      placeholder="user@example.com"
+                      value={formData.email}
+                      onChange={e => setFormData({...formData, email: e.target.value})} />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="phone" className="block text-xs font-bold text-slate-500 mb-1">Phone Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-2 top-2.5 text-slate-400" size={14} />
+                    <input id="phone" type="text" className="w-full p-2 pl-8 border rounded" 
+                      placeholder="+387..."
+                      value={formData.phone_number}
+                      onChange={e => setFormData({...formData, phone_number: e.target.value})} />
+                  </div>
                 </div>
               </div>
 

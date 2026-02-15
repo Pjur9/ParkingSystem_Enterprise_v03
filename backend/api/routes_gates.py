@@ -18,6 +18,35 @@ def serialize_log(log):
 
 # --- ENDPOINTS ---
 
+
+# backend/api/routes_gates.py
+import socket
+
+# ... postojeći importi ...
+
+@gates_bp.route('/<int:gate_id>/open', methods=['POST'])
+def open_gate_remote(gate_id):
+    """
+    Manuelno otvaranje rampe pozivanjem Forwarder servisa.
+    """
+    # 1. Provjeri da li rampa postoji
+    gate = Gate.query.get_or_404(gate_id)
+    
+    # 2. Dohvati instancu forwardera iz Flask aplikacije
+    # U app.py moramo osigurati da smo uradili: app.forwarder = forwarder_instance
+    forwarder = getattr(current_app, 'forwarder', None)
+    
+    if not forwarder:
+        return jsonify({"error": "Forwarder service is not running or not attached to app"}), 500
+
+    # 3. Pozovi logiku iz servisa
+    success, message = forwarder.open_gate_manual(gate_id)
+
+    if success:
+        return jsonify({"status": "success", "message": message}), 200
+    else:
+        return jsonify({"error": message}), 500
+
 @gates_bp.route('/', methods=['GET'])
 def get_gates():
     """

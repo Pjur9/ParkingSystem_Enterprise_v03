@@ -26,17 +26,22 @@ export interface Gate {
   is_online: boolean;
 }
 
+export interface Credential {
+  type: string;
+  value: string;
+}
+
 export interface User {
   id: number;
-  full_name: string;
   first_name: string;
   last_name: string;
-  role_id: number;
-  tenant_id: number | null;
-  credential_type: string;
-  email?: string;
+  full_name: string;      // Ovo smo dodali na backendu
+  email?: string;         // Opciono jer može biti null
+  phone_number?: string;  // Opciono
   role: string;
+  role_id: number;
   tenant: string | null;
-  primary_credential?: string;
+  tenant_id: number | null;
+  credentials: Credential[]; // Niz kredencijala
   is_active: boolean;
 }
